@@ -9,7 +9,7 @@ import pandas as pd
 import nltk
 import re
 import time
-import os # <-- ADDED for path handling
+import os # <-- ADDED os import
 
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize
@@ -17,23 +17,28 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------------------
-# Download necessary NLTK data (FIXED THE BadZipFile ERROR)
+# Download necessary NLTK data (FIXED THE LookupError)
 # ------------------------------
-# Set a writable directory for NLTK data to fix BadZipFile error
+# Set a writable directory for NLTK data to ensure resources are found
 NLTK_DATA_DIR = os.path.join(os.path.dirname(__file__), "nltk_data_cache")
 if not os.path.exists(NLTK_DATA_DIR):
     os.makedirs(NLTK_DATA_DIR)
 
+# Add the local directory to the NLTK search path
 nltk.data.path.append(NLTK_DATA_DIR)
 
 try:
     # Explicitly download to the safe, writable directory
-    nltk.download("punkt", download_dir=NLTK_DATA_DIR)
-    nltk.download("stopwords", download_dir=NLTK_DATA_DIR)
-except Exception as e:
-    # Fallback/logging if download still fails
-    st.error(f"Failed to download NLTK data. Please check connection. Error: {e}")
+    # NLTK checks if the data exists before redownloading
+    if not nltk.find('tokenizers/punkt', paths=[NLTK_DATA_DIR]):
+        nltk.download("punkt", download_dir=NLTK_DATA_DIR)
+    
+    if not nltk.find('corpora/stopwords', paths=[NLTK_DATA_DIR]):
+        nltk.download("stopwords", download_dir=NLTK_DATA_DIR)
 
+except Exception as e:
+    # Display error if download still fails (e.g., connection issue)
+    st.error(f"Failed to load NLTK data. Please check connection. Error: {e}")
 
 # ------------------------------
 # Page Configuration
@@ -197,12 +202,12 @@ def clean_text(txt):
     return txt.strip()
 
 def preprocess(txt):
-    # Check if stopwords are loaded before using them
+    # The 'stopwords' resource should be found now due to the NLTK path fix
     try:
         sw = set(stopwords.words("english"))
     except LookupError:
-        # This handles a potential NLTK error if download still failed
-        sw = set()
+        # Fallback in case of persistent lookup issues
+        sw = set() 
 
     txt = txt.lower()
     txt = re.sub(r"[^a-z\s]", " ", txt)
@@ -217,7 +222,8 @@ def pdf_to_text(file):
 
 @st.cache_data(show_spinner=False)
 def build_tfidf_chunks(text, chunk_size=800):
-    sents = sent_tokenize(text)
+    # This line triggered the LookupError, but should now pass due to the fix
+    sents = sent_tokenize(text) 
     chunks, cur = [], ""
     for s in sents:
         if len(cur) + len(s) <= chunk_size:
@@ -245,20 +251,20 @@ col1, col2, col3 = st.columns([1,3,1])
 with col2:
     st.subheader("📂 Upload Nestlé India Annual Report (PDF)")
     
-    # FIXED THE EMPTY LABEL WARNING
+    # Label warning fix carried over from previous solution
     pdf = st.file_uploader(
-        "Upload Annual Report PDF", # Descriptive label
+        "Upload Annual Report PDF",
         type=["pdf"],
-        label_visibility="hidden"   # Hide the label to maintain the original minimal look
+        label_visibility="hidden"
     )
 
     if pdf:
-        # -------------------
-        # Cache Check: Clear NLTK cache if this block runs after a failure
-        # (Though the directory fix is the primary solution)
-        # -------------------
         text = pdf_to_text(pdf)
-        df, vec, X = build_tfidf_chunks(text)
+        
+        # This function call requires the fixed NLTK environment
+        # The @st.cache_data decorator will help performance after the first run
+        df, vec, X = build_tfidf_chunks(text) 
+        
         st.success("✅ PDF loaded successfully! You can now chat below.")
 
         if "chat" not in st.session_state:
@@ -294,6 +300,6 @@ with col2:
 # ------------------------------
 st.markdown("""
 <div class="footer">
-Made by <b>Ananya Peddamgari</b> | NLP Mini Project 2025  
+Made with ❤️ by <b>Ananya Peddamgari</b> | NLP Mini Project 2025  
 </div>
 """, unsafe_allow_html=True)
