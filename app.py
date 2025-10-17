@@ -9,16 +9,31 @@ import pandas as pd
 import nltk
 import re
 import time
+import os # <-- ADDED for path handling
+
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------------------
-# Download necessary NLTK data
+# Download necessary NLTK data (FIXED THE BadZipFile ERROR)
 # ------------------------------
-nltk.download("punkt")
-nltk.download("stopwords")
+# Set a writable directory for NLTK data to fix BadZipFile error
+NLTK_DATA_DIR = os.path.join(os.path.dirname(__file__), "nltk_data_cache")
+if not os.path.exists(NLTK_DATA_DIR):
+    os.makedirs(NLTK_DATA_DIR)
+
+nltk.data.path.append(NLTK_DATA_DIR)
+
+try:
+    # Explicitly download to the safe, writable directory
+    nltk.download("punkt", download_dir=NLTK_DATA_DIR)
+    nltk.download("stopwords", download_dir=NLTK_DATA_DIR)
+except Exception as e:
+    # Fallback/logging if download still fails
+    st.error(f"Failed to download NLTK data. Please check connection. Error: {e}")
+
 
 # ------------------------------
 # Page Configuration
@@ -182,7 +197,13 @@ def clean_text(txt):
     return txt.strip()
 
 def preprocess(txt):
-    sw = set(stopwords.words("english"))
+    # Check if stopwords are loaded before using them
+    try:
+        sw = set(stopwords.words("english"))
+    except LookupError:
+        # This handles a potential NLTK error if download still failed
+        sw = set()
+
     txt = txt.lower()
     txt = re.sub(r"[^a-z\s]", " ", txt)
     return " ".join([w for w in txt.split() if w not in sw])
@@ -223,9 +244,19 @@ def get_answer(q, df, vec, X):
 col1, col2, col3 = st.columns([1,3,1])
 with col2:
     st.subheader("📂 Upload Nestlé India Annual Report (PDF)")
-    pdf = st.file_uploader("", type=["pdf"])
+    
+    # FIXED THE EMPTY LABEL WARNING
+    pdf = st.file_uploader(
+        "Upload Annual Report PDF", # Descriptive label
+        type=["pdf"],
+        label_visibility="hidden"   # Hide the label to maintain the original minimal look
+    )
 
     if pdf:
+        # -------------------
+        # Cache Check: Clear NLTK cache if this block runs after a failure
+        # (Though the directory fix is the primary solution)
+        # -------------------
         text = pdf_to_text(pdf)
         df, vec, X = build_tfidf_chunks(text)
         st.success("✅ PDF loaded successfully! You can now chat below.")
@@ -263,7 +294,6 @@ with col2:
 # ------------------------------
 st.markdown("""
 <div class="footer">
-Made with ❤️ by <b>Ananya Peddamgari</b> | NLP Mini Project 2025  
-Inspired by Nestlé Red (#E41E26) & Nestlé Blue (#0B4C8C)
+Made by <b>Ananya Peddamgari</b> | NLP Mini Project 2025  
 </div>
 """, unsafe_allow_html=True)
