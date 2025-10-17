@@ -9,7 +9,7 @@ import pandas as pd
 import nltk
 import re
 import time
-import os # <-- ADDED os import
+import os
 
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize
@@ -21,24 +21,22 @@ from sklearn.metrics.pairwise import cosine_similarity
 # ------------------------------
 # Set a writable directory for NLTK data to ensure resources are found
 NLTK_DATA_DIR = os.path.join(os.path.dirname(__file__), "nltk_data_cache")
+
+# Add the local directory to the NLTK search path before checking/downloading
+if NLTK_DATA_DIR not in nltk.data.path:
+    nltk.data.path.append(NLTK_DATA_DIR)
+    
 if not os.path.exists(NLTK_DATA_DIR):
     os.makedirs(NLTK_DATA_DIR)
 
-# Add the local directory to the NLTK search path
-nltk.data.path.append(NLTK_DATA_DIR)
-
 try:
-    # Explicitly download to the safe, writable directory
-    # NLTK checks if the data exists before redownloading
-    if not nltk.find('tokenizers/punkt', paths=[NLTK_DATA_DIR]):
-        nltk.download("punkt", download_dir=NLTK_DATA_DIR)
-    
-    if not nltk.find('corpora/stopwords', paths=[NLTK_DATA_DIR]):
-        nltk.download("stopwords", download_dir=NLTK_DATA_DIR)
+    # Simply call download. NLTK will use the paths in nltk.data.path
+    nltk.download("punkt", quiet=True) 
+    nltk.download("stopwords", quiet=True)
 
 except Exception as e:
-    # Display error if download still fails (e.g., connection issue)
     st.error(f"Failed to load NLTK data. Please check connection. Error: {e}")
+
 
 # ------------------------------
 # Page Configuration
@@ -202,7 +200,6 @@ def clean_text(txt):
     return txt.strip()
 
 def preprocess(txt):
-    # The 'stopwords' resource should be found now due to the NLTK path fix
     try:
         sw = set(stopwords.words("english"))
     except LookupError:
@@ -222,7 +219,7 @@ def pdf_to_text(file):
 
 @st.cache_data(show_spinner=False)
 def build_tfidf_chunks(text, chunk_size=800):
-    # This line triggered the LookupError, but should now pass due to the fix
+    # This line now relies on the globally set NLTK paths
     sents = sent_tokenize(text) 
     chunks, cur = [], ""
     for s in sents:
@@ -251,7 +248,6 @@ col1, col2, col3 = st.columns([1,3,1])
 with col2:
     st.subheader("📂 Upload Nestlé India Annual Report (PDF)")
     
-    # Label warning fix carried over from previous solution
     pdf = st.file_uploader(
         "Upload Annual Report PDF",
         type=["pdf"],
@@ -261,8 +257,7 @@ with col2:
     if pdf:
         text = pdf_to_text(pdf)
         
-        # This function call requires the fixed NLTK environment
-        # The @st.cache_data decorator will help performance after the first run
+        # Ensure the cache is cleared in deployment for this to work the first time after code change
         df, vec, X = build_tfidf_chunks(text) 
         
         st.success("✅ PDF loaded successfully! You can now chat below.")
@@ -300,6 +295,6 @@ with col2:
 # ------------------------------
 st.markdown("""
 <div class="footer">
-Made with ❤️ by <b>Ananya Peddamgari</b> | NLP Mini Project 2025  
+Made with ❤️ by <b>Ananya Peddamgari</b> | NLP Mini Project 2025  
 </div>
 """, unsafe_allow_html=True)
